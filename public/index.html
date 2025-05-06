@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+
+  <title>Drawing Platform</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: "Pixelify Sans", sans-serif;
+	  font-size: 25px;
+      background-color: #000;
+    }
+
+    #login {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    #login-box {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+
+    #login-box input {
+      padding: 10px;
+      margin: 10px;
+      width: 200px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    #login-box button {
+      padding: 10px 20px;
+      background-color: #4caf50;
+      border: none;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #app {
+      display: none;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #toolbar {
+      display: flex;
+      justify-content: space-between;
+	  align-items: center;
+      padding: 10px;
+      background-color: #ffffff;
+      border-bottom: 1px solid #ccc;
+      z-index: 2;
+    }
+	#toolbar img#logo {
+	height: 40px;
+	}
+
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background-color: #000;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+      display: block;
+      background-color: white;
+    }
+
+    #airdrop {
+      background-color: #ffffff;
+      padding: 15px;
+      text-align: center;
+      border-top: 1px solid #ccc;
+    }
+
+    #airdrop input, #airdrop button {
+      padding: 10px;
+      margin: 5px;
+    }
+	#aboutButton {
+	  padding: 8px 12px;
+	  background-color: #eee;
+	  border: none;
+	  border-radius: 5px;
+	  cursor: pointer;
+	  font-weight: bold;
+	}
+
+	#aboutModal {
+	  display: none;
+	  position: fixed;
+	  z-index: 20;
+	  left: 0;
+	  top: 0;
+	  width: 100%;
+	  height: 100%;
+	  overflow: auto;
+	  background-color: rgba(0,0,0,0.6);
+	}
+
+	#aboutContent {
+	  background-color: #fff;
+	  margin: 10% auto;
+	  padding: 20px;
+	  border-radius: 10px;
+	  width: 80%;
+	  max-width: 500px;
+	  position: relative;
+	  text-align: center;
+	}
+
+	#closeAbout {
+	  position: absolute;
+	  top: 10px;
+	  right: 15px;
+	  font-size: 28px;
+	  cursor: pointer;
+	}
+
+    #nicknameDisplay {
+      font-weight: bold;
+    }
+
+    #colorPalette {
+      position: absolute;
+      top: 80px;
+      right: 10px;
+      background: #274746;
+      padding: 10px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 5;
+    }
+	#colorPalette1 {
+      position: absolute;
+      top: 550px;
+      right: 10px;
+      background: #274746;
+      padding: 10px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 5;
+    }
+
+    .colorOption {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+    }
+
+    .colorOption.selected {
+      border: 2px solid black;
+    }
+
+    #zoomControls {
+      position: absolute;
+      top: 80px;
+      left: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 5;
+    }
+
+    .zoomButton {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: white;
+      border: 1px solid #ccc;
+      font-size: 24px;
+      cursor: pointer;
+      text-align: center;
+      line-height: 40px;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+<div id="login">
+  <div id="login-box">
+    <h2>Login</h2>
+    <input type="text" placeholder="Nickname" id="nickname">
+    <input type="password" placeholder="Password" id="password">
+    <br>
+    <button onclick="login()">Enter</button>
+  </div>
+</div>
+
+<div id="app">
+  <div id="toolbar">
+  <div id="nicknameDisplay"></div>
+  <img id="logo" src="logo.png" alt="Logo">
+  <div>Painted Pixels: <span id="clickCount">0</span></div>
+</div>
+
+  <div id="canvas-container">
+    <canvas id="canvas" width="5000" height="5000"></canvas>
+
+    <div id="colorPalette">
+      <!-- 10 кольорів -->
+      <div class="colorOption" style="background-color: #000000;" data-color="#000000"></div>
+      <div class="colorOption" style="background-color: #ff0000;" data-color="#ff0000"></div>
+      <div class="colorOption" style="background-color: #00ff00;" data-color="#00ff00"></div>
+      <div class="colorOption" style="background-color: #0000ff;" data-color="#0000ff"></div>
+      <div class="colorOption" style="background-color: #ffff00;" data-color="#ffff00"></div>
+      <div class="colorOption" style="background-color: #ff00ff;" data-color="#ff00ff"></div>
+      <div class="colorOption" style="background-color: #00ffff;" data-color="#00ffff"></div>
+      <div class="colorOption" style="background-color: #ffffff;" data-color="#ffffff"></div>
+      <div class="colorOption" style="background-color: #808080;" data-color="#808080"></div>
+      <div class="colorOption" style="background-color: #ffa500;" data-color="#ffa500"></div>
+
+    </div>
+	<div id="colorPalette1">
+	  <button id="aboutButton">About</button>
+    </div>
+
+    <div id="zoomControls">
+      <div class="zoomButton" onclick="setZoom(currentZoom * 1.2)">+</div>
+      <div class="zoomButton" onclick="setZoom(currentZoom * 0.8)">−</div>
+    </div>
+  </div>
+
+  <div id="airdrop">
+    <p>If you painted at least 500 unique pixels, enter your Solana wallet to claim 0.01 $SOL from dev wallet</p>
+    <input type="text" id="wallet" placeholder="Solana Wallet Address">
+    <button onclick="claimAirdrop()">Claim</button>
+    <p id="claimMsg"></p>
+  </div>
+</div>
+
+<script>
+  let selectedColor = "#000000";
+
+  function login() {
+    const nick = document.getElementById('nickname').value;
+    const pass = document.getElementById('password').value;
+    if (nick && pass) {
+      document.getElementById('login').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      document.getElementById('nicknameDisplay').innerText = "Logged in as: " + nick;
+    } else {
+      alert("Please enter nickname and password.");
+    }
+  }
+
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const pixelSize = 10;
+  const drawnPixels = new Set();
+  let clickCount = 0;
+  let currentZoom = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+  let isDragging = false;
+  let lastX, lastY;
+  let isPanning = false;
+
+  const canvasContainer = document.getElementById('canvas-container');
+
+  function updateClickCount() {
+    document.getElementById("clickCount").innerText = clickCount;
+  }
+
+  function clampOffset() {
+    const maxOffsetX = 0;
+    const maxOffsetY = 0;
+    const minOffsetX = canvasContainer.clientWidth - canvas.width * currentZoom;
+    const minOffsetY = canvasContainer.clientHeight - canvas.height * currentZoom;
+    offsetX = Math.min(maxOffsetX, Math.max(minOffsetX, offsetX));
+    offsetY = Math.min(maxOffsetY, Math.max(minOffsetY, offsetY));
+  }
+
+  function setZoom(value, centerX, centerY) {
+    const newZoom = Math.max(0.5, Math.min(value, 10));
+    const factor = newZoom / currentZoom;
+    const cx = centerX ?? canvasContainer.clientWidth / 2;
+    const cy = centerY ?? canvasContainer.clientHeight / 2;
+    offsetX = cx - (cx - offsetX) * factor;
+    offsetY = cy - (cy - offsetY) * factor;
+    currentZoom = newZoom;
+    clampOffset();
+    draw();
+  }
+
+  function draw() {
+    canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${currentZoom})`;
+    canvas.style.transformOrigin = '0 0';
+  }
+
+  canvasContainer.addEventListener("wheel", function(e) {
+    e.preventDefault();
+    const rect = canvasContainer.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    setZoom(currentZoom * zoomFactor, cx, cy);
+  });
+
+  canvasContainer.addEventListener("mousedown", function(e) {
+    isDragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    isPanning = false;
+  });
+
+  canvasContainer.addEventListener("mousemove", function(e) {
+    if (isDragging) {
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+        isPanning = true;
+      }
+      offsetX += dx;
+      offsetY += dy;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      clampOffset();
+      draw();
+    }
+  });
+
+  window.addEventListener("mouseup", () => isDragging = false);
+  canvasContainer.addEventListener("mouseleave", () => isDragging = false);
+
+  canvasContainer.addEventListener("click", function(evt) {
+	 if (evt.target !== canvas) return;
+    if (isPanning) {
+      isPanning = false;
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((evt.clientX - rect.left) / currentZoom / pixelSize);
+    const y = Math.floor((evt.clientY - rect.top) / currentZoom / pixelSize);
+    const key = `${x},${y}`;
+    if (!drawnPixels.has(key)) {
+      drawnPixels.add(key);
+      clickCount++;
+      updateClickCount();
+    }
+    ctx.fillStyle = selectedColor;
+    ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+  });
+
+  document.querySelectorAll('.colorOption').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.colorOption').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedColor = el.getAttribute('data-color');
+    });
+  });
+
+  document.querySelector('.colorOption').classList.add('selected');
+
+  function claimAirdrop() {
+    const wallet = document.getElementById("wallet").value;
+    const msg = document.getElementById("claimMsg");
+    if (clickCount >= 500 && wallet.trim()) {
+      msg.innerText = "✅ Claimed to wallet: " + wallet;
+    } else {
+      msg.innerText = "❌ You need at least 500 unique painted pixels and a valid wallet address.";
+    }
+  }
+
+  // Draw grid
+  ctx.strokeStyle = "#ddd";
+  for (let x = 0; x < canvas.width; x += pixelSize) {
+    for (let y = 0; y < canvas.height; y += pixelSize) {
+      ctx.strokeRect(x, y, pixelSize, pixelSize);
+    }
+  }
+window.onload = function() {
+  document.getElementById("aboutButton").addEventListener("click", () => {
+    document.getElementById("aboutModal").style.display = "block";
+  });
+
+  document.getElementById("closeAbout").addEventListener("click", () => {
+    document.getElementById("aboutModal").style.display = "none";
+  });
+
+  window.addEventListener("click", (e) => {
+    if (e.target == document.getElementById("aboutModal")) {
+      document.getElementById("aboutModal").style.display = "none";
+    }
+  });
+};
+
+</script>
+<div id="aboutModal">
+  <div id="aboutContent">
+    <span id="closeAbout">&times;</span>
+    <h2>About This Site</h2>
+    <p>What is $SIXEL?<br>
+$SIXEL is the utility and reward token powering Pixel Battle. All in-game incentives, marketplace rewards, and seasonal prize pools are settled in $SIXEL — and airdrops go directly to the most active pixel owners.<br>
+
+Hold your ground. Hold your pixels.<br>
+Earn real value while having pixel-perfect fun.<br></p>
+  </div>
+</div>
+<script>
+const socket = io();
+
+socket.on('init', (data) => {
+  for (const key in data) {
+    const [x, y] = key.split(',').map(Number);
+    ctx.fillStyle = data[key];
+    ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+  }
+});
+
+socket.on('pixel', (data) => {
+  ctx.fillStyle = data.color;
+  ctx.fillRect(data.x * pixelSize, data.y * pixelSize, pixelSize, pixelSize);
+});
+
+canvasContainer.addEventListener("click", function(evt) {
+  if (evt.target !== canvas || isPanning) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((evt.clientX - rect.left) / currentZoom / pixelSize);
+  const y = Math.floor((evt.clientY - rect.top) / currentZoom / pixelSize);
+  const key = `${x},${y}`;
+
+  if (!drawnPixels.has(key)) {
+    drawnPixels.add(key);
+    clickCount++;
+    updateClickCount();
+  }
+
+  ctx.fillStyle = selectedColor;
+  ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+
+  socket.emit('pixel', { x, y, color: selectedColor });
+});
+</script>
+
+</body>
+</html>
